@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PyForge — Python Challenge Engine</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #06060e; font-family: 'Courier New', monospace; color: #00aaff; min-height: 100vh; display: flex; flex-direction: column; }
+  .scanline { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,170,255,0.01) 2px, rgba(0,170,255,0.01) 4px); pointer-events: none; z-index: 999; }
+
+  /* HEADER */
+  .header { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; background: #0a0a14; border-bottom: 1px solid #00aaff22; flex-shrink: 0; }
+  .logo { font-size: 20px; font-weight: bold; letter-spacing: 4px; color: #00aaff; }
+  .logo span { color: #ff6600; }
+  .header-stats { display: flex; gap: 24px; align-items: center; }
+  .hstat { text-align: right; }
+  .hstat-val { font-size: 18px; font-weight: bold; color: #00ddff; }
+  .hstat-lab { font-size: 9px; color: #00aaff44; letter-spacing: 2px; }
+  .xp-bar-wrap { width: 120px; height: 4px; background: #00aaff15; border-radius: 2px; overflow: hidden; }
+  .xp-bar { height: 100%; background: #ff6600; border-radius: 2px; transition: width 0.5s; }
+
+  /* LAYOUT */
+  .main { display: grid; grid-template-columns: 260px 1fr; flex: 1; min-height: 0; }
+
+  /* SIDEBAR */
+  .sidebar { background: #0a0a14; border-right: 1px solid #00aaff15; overflow-y: auto; padding: 16px 0; }
+  .sidebar-section { padding: 0 16px 16px; }
+  .sidebar-label { font-size: 9px; letter-spacing: 3px; color: #00aaff44; padding: 8px 16px 6px; border-bottom: 1px solid #00aaff11; margin-bottom: 8px; }
+  .challenge-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; background: transparent; border: 1px solid transparent; border-radius: 4px; cursor: pointer; text-align: left; transition: all 0.15s; margin-bottom: 4px; }
+  .challenge-btn:hover { background: #00aaff11; border-color: #00aaff22; }
+  .challenge-btn.active { background: #00aaff15; border-color: #00aaff44; }
+  .challenge-btn.solved { opacity: 0.6; }
+  .ch-icon { font-size: 16px; flex-shrink: 0; }
+  .ch-info { flex: 1; min-width: 0; }
+  .ch-name { font-size: 12px; color: #aaddff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: sans-serif; }
+  .ch-meta { display: flex; gap: 6px; margin-top: 3px; align-items: center; }
+  .ch-diff { font-size: 9px; letter-spacing: 1px; padding: 1px 6px; border-radius: 2px; }
+  .diff-beginner { color: #00ff88; border: 1px solid #00ff8840; }
+  .diff-intermediate { color: #ffaa00; border: 1px solid #ffaa0040; }
+  .diff-advanced { color: #ff3366; border: 1px solid #ff336640; }
+  .ch-xp { font-size: 9px; color: #ff660088; }
+  .ch-check { font-size: 12px; color: #00ff88; }
+
+  /* MAIN PANEL */
+  .panel { display: flex; flex-direction: column; overflow: hidden; }
+  .challenge-header { padding: 20px 24px 16px; border-bottom: 1px solid #00aaff15; background: #09091a; flex-shrink: 0; }
+  .ch-title-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .ch-title { font-size: 18px; color: #e0f0ff; font-family: sans-serif; font-weight: 500; }
+  .ch-badges { display: flex; gap: 8px; }
+  .badge { font-size: 9px; letter-spacing: 2px; padding: 3px 10px; border-radius: 2px; font-family: monospace; }
+  .badge-category { color: #00aaff; border: 1px solid #00aaff44; background: #00aaff11; }
+  .ch-desc { font-size: 13px; color: #7799bb; line-height: 1.65; font-family: sans-serif; margin-bottom: 10px; }
+  .ch-hint { font-size: 12px; color: #ff660077; font-family: sans-serif; font-style: italic; }
+
+  /* EDITOR AREA */
+  .editor-area { display: grid; grid-template-rows: 1fr auto; flex: 1; min-height: 0; overflow: hidden; }
+  .editor-wrap { position: relative; overflow: hidden; display: flex; flex-direction: column; }
+  .editor-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: #0d0d1a; border-bottom: 1px solid #00aaff15; flex-shrink: 0; }
+  .editor-label { font-size: 10px; letter-spacing: 2px; color: #00aaff55; }
+  .toolbar-btns { display: flex; gap: 8px; }
+  .tbtn { padding: 5px 14px; background: transparent; border: 1px solid #00aaff33; color: #00aaff; font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 1px; cursor: pointer; border-radius: 2px; transition: all 0.15s; }
+  .tbtn:hover { background: #00aaff15; }
+  .tbtn.run { border-color: #ff6600; color: #ff6600; }
+  .tbtn.run:hover { background: #ff660015; }
+  textarea#code-editor {
+    flex: 1; width: 100%; background: #07070f; border: none; color: #c8e0ff;
+    font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.7;
+    padding: 16px 20px; resize: none; outline: none; tab-size: 4;
+    min-height: 220px;
+  }
+  textarea#code-editor::selection { background: #00aaff33; }
+
+  /* OUTPUT */
+  .output-panel { border-top: 1px solid #00aaff15; flex-shrink: 0; }
+  .output-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: #0d0d1a; }
+  .output-label { font-size: 10px; letter-spacing: 2px; color: #00aaff55; }
+  .output-status { font-size: 11px; letter-spacing: 1px; }
+  .status-pass { color: #00ff88; }
+  .status-fail { color: #ff3366; }
+  .status-run { color: #ffaa00; }
+  .output-body { padding: 12px 20px; background: #06060e; font-size: 13px; line-height: 1.7; min-height: 80px; max-height: 180px; overflow-y: auto; }
+  .out-line { margin-bottom: 3px; }
+  .out-pass { color: #00ff88; }
+  .out-fail { color: #ff3366; }
+  .out-info { color: #7799bb; font-family: sans-serif; }
+  .out-xp { color: #ff6600; font-weight: bold; }
+  .out-print { color: #c8e0ff; }
+
+  /* SCREENS */
+  .screen { display: none; }
+  .screen.active { display: flex; flex-direction: column; }
+  #splash { align-items: center; justify-content: center; min-height: 100vh; text-align: center; padding: 48px; }
+  .splash-logo { font-size: 48px; font-weight: bold; letter-spacing: 6px; color: #00aaff; margin-bottom: 8px; }
+  .splash-logo span { color: #ff6600; }
+  .splash-sub { font-size: 10px; letter-spacing: 4px; color: #00aaff44; margin-bottom: 40px; }
+  .splash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; max-width: 480px; width: 100%; margin-bottom: 40px; }
+  .splash-card { background: #0a0a14; border: 1px solid #00aaff20; border-radius: 6px; padding: 18px; text-align: left; }
+  .splash-card-icon { font-size: 22px; margin-bottom: 8px; }
+  .splash-card-title { font-size: 12px; color: #00ddff; letter-spacing: 1px; margin-bottom: 6px; }
+  .splash-card-desc { font-size: 11px; color: #00aaff66; font-family: sans-serif; line-height: 1.5; }
+  .enter-btn { padding: 16px 56px; background: transparent; border: 1px solid #00aaff; color: #00aaff; font-family: 'Courier New', monospace; font-size: 14px; letter-spacing: 4px; cursor: pointer; border-radius: 2px; transition: all 0.2s; }
+  .enter-btn:hover { background: #00aaff15; }
+
+  #forge { flex: 1; }
+  .forge-inner { display: flex; flex-direction: column; height: 100vh; }
+</style>
+</head>
+<body>
+<div class="scanline"></div>
+
+<div id="splash" class="screen active">
+  <div class="splash-logo">Py<span>Forge</span></div>
+  <div class="splash-sub">PYTHON CHALLENGE ENGINE v1.0 — BUILD REAL SCRIPTS</div>
+  <div class="splash-grid">
+    <div class="splash-card">
+      <div class="splash-card-icon">🐍</div>
+      <div class="splash-card-title">REAL CODE</div>
+      <div class="splash-card-desc">Write actual Python that runs in your browser via Pyodide</div>
+    </div>
+    <div class="splash-card">
+      <div class="splash-card-icon">⚡</div>
+      <div class="splash-card-title">XP SYSTEM</div>
+      <div class="splash-card-desc">Earn XP per challenge. Harder challenges, bigger rewards</div>
+    </div>
+    <div class="splash-card">
+      <div class="splash-card-icon">🎯</div>
+      <div class="splash-card-title">TEST CASES</div>
+      <div class="splash-card-desc">Your code runs against real test cases — no hand-holding</div>
+    </div>
+    <div class="splash-card">
+      <div class="splash-card-icon">🔥</div>
+      <div class="splash-card-title">CAREER TRACK</div>
+      <div class="splash-card-desc">Challenges built for cybersecurity & IT automation paths</div>
+    </div>
+  </div>
+  <button class="enter-btn" onclick="enterForge()">[ ENTER THE FORGE ]</button>
+</div>
+
+<div id="forge" class="screen">
+  <div class="forge-inner">
+    <div class="header">
+      <div class="logo">Py<span>Forge</span></div>
+      <div class="header-stats">
+        <div class="hstat">
+          <div class="hstat-val" id="hstat-solved">0</div>
+          <div class="hstat-lab">SOLVED</div>
+        </div>
+        <div class="hstat">
+          <div class="hstat-val" id="hstat-xp">0</div>
+          <div class="hstat-lab">XP</div>
+        </div>
+        <div>
+          <div class="hstat-lab" style="margin-bottom:4px;">LEVEL <span id="hstat-level">1</span></div>
+          <div class="xp-bar-wrap"><div class="xp-bar" id="xp-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="main">
+      <div class="sidebar" id="sidebar"></div>
+      <div class="panel">
+        <div class="challenge-header" id="challenge-header"></div>
+        <div class="editor-area">
+          <div class="editor-wrap">
+            <div class="editor-toolbar">
+              <span class="editor-label">PYTHON 3 — EDITOR</span>
+              <div class="toolbar-btns">
+                <button class="tbtn" onclick="resetCode()">RESET</button>
+                <button class="tbtn" onclick="showHint()">HINT</button>
+                <button class="tbtn run" onclick="runCode()">&#9654; RUN</button>
+              </div>
+            </div>
+            <textarea id="code-editor" spellcheck="false" autocomplete="off"></textarea>
+          </div>
+          <div class="output-panel">
+            <div class="output-header">
+              <span class="output-label">OUTPUT / TEST RESULTS</span>
+              <span class="output-status" id="output-status"></span>
+            </div>
+            <div class="output-body" id="output-body">
+              <div class="out-line out-info">Select a challenge from the sidebar and write your solution. Press RUN to test.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
+<script>
+const CHALLENGES = [
+  {
+    id: 'c1', category: 'BASICS', diff: 'beginner', xp: 50,
+    name: 'FizzBuzz',
+    desc: 'Write a function fizzbuzz(n) that returns a list of strings from 1 to n. For multiples of 3, use "Fizz". For multiples of 5, use "Buzz". For both, use "FizzBuzz". Otherwise use the number as a string.',
+    hint: 'Use the modulo operator % to check divisibility. Check for 15 (both) BEFORE checking 3 and 5 separately.',
+    starter: `def fizzbuzz(n):
+    result = []
+    for i in range(1, n + 1):
+        # your logic here
+        pass
+    return result
+
+# Test it
+print(fizzbuzz(15))`,
+    tests: [
+      { input: 'fizzbuzz(15)', expected: `['1', '2', 'Fizz', '4', 'Buzz', 'Fizz', '7', '8', 'Fizz', 'Buzz', '11', 'Fizz', '13', '14', 'FizzBuzz']` },
+      { input: 'fizzbuzz(5)', expected: `['1', '2', 'Fizz', '4', 'Buzz']` },
+      { input: 'len(fizzbuzz(100))', expected: '100' },
+    ]
+  },
+  {
+    id: 'c2', category: 'STRINGS', diff: 'beginner', xp: 60,
+    name: 'Password Validator',
+    desc: 'Write is_strong_password(pw) that returns True if a password is strong. Rules: at least 8 chars, has a digit, has an uppercase letter, has a special character from !@#$%^&*.',
+    hint: 'Use any() with a generator expression. Check: len(pw)>=8, any(c.isdigit() for c in pw), any(c.isupper() for c in pw), any(c in "!@#$%^&*" for c in pw).',
+    starter: `def is_strong_password(pw):
+    # Check all four conditions
+    pass
+
+print(is_strong_password("Hello123!"))   # True
+print(is_strong_password("weakpass"))    # False`,
+    tests: [
+      { input: 'is_strong_password("Hello123!")', expected: 'True' },
+      { input: 'is_strong_password("weakpass")', expected: 'False' },
+      { input: 'is_strong_password("Short1!")', expected: 'False' },
+      { input: 'is_strong_password("NoSpecial123")', expected: 'False' },
+    ]
+  },
+  {
+    id: 'c3', category: 'DATA', diff: 'beginner', xp: 70,
+    name: 'Count Word Frequency',
+    desc: 'Write word_freq(text) that returns a dictionary of word frequencies from a string. Convert to lowercase, ignore punctuation (.,!?). Sort by frequency descending.',
+    hint: 'Use .lower() and .replace() or str.translate(). A dict or collections.Counter both work.',
+    starter: `def word_freq(text):
+    # Clean, split, count
+    pass
+
+text = "the quick brown fox jumps over the lazy dog the fox"
+print(word_freq(text))`,
+    tests: [
+      { input: 'word_freq("the quick the")["the"]', expected: '2' },
+      { input: 'word_freq("Hello hello HELLO")["hello"]', expected: '3' },
+      { input: 'word_freq("a b c")["a"]', expected: '1' },
+    ]
+  },
+  {
+    id: 'c4', category: 'SECURITY', diff: 'intermediate', xp: 120,
+    name: 'Caesar Cipher',
+    desc: 'Write caesar(text, shift) that encrypts a string using Caesar cipher. Only shift letters (A-Z, a-z). Non-letter characters stay unchanged. Wrap around at Z/z.',
+    hint: 'Use ord() and chr(). For uppercase: chr((ord(c) - ord("A") + shift) % 26 + ord("A")). Handle lowercase separately.',
+    starter: `def caesar(text, shift):
+    result = ""
+    for c in text:
+        # Handle uppercase, lowercase, and non-letters
+        pass
+    return result
+
+print(caesar("Hello, World!", 3))   # Khoor, Zruog!
+print(caesar("Khoor, Zruog!", -3))  # Hello, World!`,
+    tests: [
+      { input: 'caesar("Hello, World!", 3)', expected: '"Khoor, Zruog!"' },
+      { input: 'caesar("Khoor, Zruog!", -3)', expected: '"Hello, World!"' },
+      { input: 'caesar("ABC", 1)', expected: '"BCD"' },
+      { input: 'caesar("xyz", 3)', expected: '"abc"' },
+    ]
+  },
+  {
+    id: 'c5', category: 'SECURITY', diff: 'intermediate', xp: 140,
+    name: 'Log Parser',
+    desc: 'Write parse_failed_logins(log) that takes a multi-line auth log string and returns a dict mapping each IP address to the number of failed login attempts. Lines look like: "Failed password for user from 192.168.1.1"',
+    hint: 'Split the log by newlines. Use "from" in line and line.split() to get the IP (it\'s the last token). Only count lines with "Failed" in them.',
+    starter: `def parse_failed_logins(log):
+    # Parse each line, extract IP, count failures
+    pass
+
+log = """Failed password for user from 10.0.0.1
+Failed password for admin from 10.0.0.2
+Failed password for root from 10.0.0.1
+Accepted password for jazzy from 10.0.0.3
+Failed password for user from 10.0.0.2"""
+
+print(parse_failed_logins(log))`,
+    tests: [
+      { input: `parse_failed_logins("Failed password for user from 1.1.1.1\\nFailed password for root from 1.1.1.1")["1.1.1.1"]`, expected: '2' },
+      { input: `parse_failed_logins("Accepted password for user from 1.2.3.4").get("1.2.3.4", 0)`, expected: '0' },
+      { input: `len(parse_failed_logins("Failed password for u from 1.1.1.1\\nFailed password for u from 2.2.2.2"))`, expected: '2' },
+    ]
+  },
+  {
+    id: 'c6', category: 'AUTOMATION', diff: 'intermediate', xp: 130,
+    name: 'File Path Normalizer',
+    desc: 'Write normalize_paths(paths) that takes a list of file paths and returns them sorted, with backslashes converted to forward slashes, and all paths lowercased. Filter out any empty strings.',
+    hint: 'Use .replace("\\\\", "/"), .lower(), and filter(). Then sort().',
+    starter: `def normalize_paths(paths):
+    # Convert, filter, sort
+    pass
+
+paths = ["C:\\\\Users\\\\Jazzy\\\\file.txt", "", "D:\\\\LOGS\\\\auth.log", "c:\\\\windows\\\\system32"]
+print(normalize_paths(paths))`,
+    tests: [
+      { input: `normalize_paths(["C:\\\\Users\\\\Test"])[0]`, expected: '"c:/users/test"' },
+      { input: `len(normalize_paths(["a", "", "b"]))`, expected: '2' },
+      { input: `normalize_paths(["b", "a"])[0]`, expected: '"a"' },
+    ]
+  },
+  {
+    id: 'c7', category: 'SECURITY', diff: 'advanced', xp: 200,
+    name: 'Brute Force Detector',
+    desc: 'Write detect_brute_force(events) that takes a list of dicts with keys "ip", "timestamp" (int seconds), and "success". Return a list of IPs that had 5+ failed attempts within any 60-second window.',
+    hint: 'Group events by IP. For each IP, sort by timestamp. Use a sliding window: for each event i, count how many failed events fall within [timestamp[i], timestamp[i]+60]. If count >= 5, flag the IP.',
+    starter: `def detect_brute_force(events):
+    from collections import defaultdict
+    # Group by IP, find IPs with 5+ failures in 60s window
+    pass
+
+events = [
+    {"ip": "10.0.0.1", "timestamp": 100, "success": False},
+    {"ip": "10.0.0.1", "timestamp": 110, "success": False},
+    {"ip": "10.0.0.1", "timestamp": 120, "success": False},
+    {"ip": "10.0.0.1", "timestamp": 130, "success": False},
+    {"ip": "10.0.0.1", "timestamp": 140, "success": False},
+    {"ip": "10.0.0.2", "timestamp": 100, "success": False},
+]
+print(detect_brute_force(events))  # ['10.0.0.1']`,
+    tests: [
+      { input: `"10.0.0.1" in detect_brute_force([{"ip":"10.0.0.1","timestamp":t,"success":False} for t in range(100,600,10)])`, expected: 'True' },
+      { input: `"clean" in detect_brute_force([{"ip":"clean","timestamp":t,"success":False} for t in range(0,600,200)])`, expected: 'False' },
+    ]
+  },
+  {
+    id: 'c8', category: 'AUTOMATION', diff: 'advanced', xp: 220,
+    name: 'Config File Parser',
+    desc: 'Write parse_config(text) that parses a .ini-style config into a nested dict. Sections are [SectionName]. Key-value pairs are key=value. Strip whitespace. Skip lines starting with # (comments).',
+    hint: 'Track a current_section variable. When you see [X], set current_section = "X" and create a new dict. Otherwise split on "=" to get key/value.',
+    starter: `def parse_config(text):
+    config = {}
+    current_section = None
+    for line in text.strip().splitlines():
+        line = line.strip()
+        # Handle comments, sections, key=value
+        pass
+    return config
+
+cfg = """
+# Database config
+[database]
+host = localhost
+port = 5432
+
+[security]
+ssl = true
+timeout = 30
+"""
+print(parse_config(cfg))`,
+    tests: [
+      { input: `parse_config("[db]\\nhost=localhost")["db"]["host"]`, expected: '"localhost"' },
+      { input: `parse_config("# comment\\n[s]\\nk=v")["s"]["k"]`, expected: '"v"' },
+      { input: `len(parse_config("[a]\\nx=1\\n[b]\\ny=2"))`, expected: '2' },
+    ]
+  },
+];
+
+let pyodide = null;
+let pyodideReady = false;
+let currentChallenge = null;
+let solvedSet = new Set();
+let totalXP = 0;
+let hintShown = false;
+
+const LEVEL_XP = [0, 200, 500, 900, 1400, 2000];
+
+async function enterForge() {
+  document.getElementById('splash').classList.remove('active');
+  document.getElementById('forge').classList.add('active');
+  buildSidebar();
+  loadChallenge(CHALLENGES[0]);
+  initPyodide();
+}
+
+async function initPyodide() {
+  try {
+    setOutputStatus('LOADING PYTHON...', 'run');
+    addOutput('<span class="out-info">Loading Python runtime (first time takes ~10s)...</span>');
+    pyodide = await loadPyodide();
+    pyodideReady = true;
+    setOutputStatus('PYTHON READY', 'pass');
+    addOutput('<span class="out-pass">Python 3 runtime loaded. Write your solution and press RUN.</span>');
+  } catch(e) {
+    setOutputStatus('RUNTIME ERROR', 'fail');
+    addOutput('<span class="out-fail">Could not load Python runtime: ' + e.message + '</span>');
+  }
+}
+
+function buildSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const categories = [...new Set(CHALLENGES.map(c => c.category))];
+  sidebar.innerHTML = '';
+  categories.forEach(cat => {
+    const label = document.createElement('div');
+    label.className = 'sidebar-label';
+    label.textContent = cat;
+    sidebar.appendChild(label);
+    CHALLENGES.filter(c => c.category === cat).forEach(c => {
+      const btn = document.createElement('button');
+      btn.className = 'challenge-btn' + (solvedSet.has(c.id) ? ' solved' : '');
+      btn.id = 'ch-btn-' + c.id;
+      btn.onclick = () => loadChallenge(c);
+      btn.innerHTML = `
+        <span class="ch-icon">${solvedSet.has(c.id) ? '✓' : getDiffIcon(c.diff)}</span>
+        <div class="ch-info">
+          <div class="ch-name">${c.name}</div>
+          <div class="ch-meta">
+            <span class="ch-diff diff-${c.diff}">${c.diff.toUpperCase()}</span>
+            <span class="ch-xp">+${c.xp} XP</span>
+          </div>
+        </div>
+        ${solvedSet.has(c.id) ? '<span class="ch-check">✓</span>' : ''}
+      `;
+      sidebar.appendChild(btn);
+    });
+  });
+}
+
+function getDiffIcon(d) { return { beginner: '○', intermediate: '◈', advanced: '◆' }[d] || '○'; }
+
+function loadChallenge(c) {
+  currentChallenge = c;
+  hintShown = false;
+  document.querySelectorAll('.challenge-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('ch-btn-' + c.id);
+  if (btn) btn.classList.add('active');
+
+  document.getElementById('challenge-header').innerHTML = `
+    <div class="ch-title-row">
+      <div class="ch-title">${c.name}</div>
+      <div class="ch-badges">
+        <span class="badge badge-category">${c.category}</span>
+        <span class="badge diff-${c.diff}" style="border:1px solid;padding:3px 10px;font-size:9px;letter-spacing:2px;">${c.diff.toUpperCase()}</span>
+      </div>
+    </div>
+    <div class="ch-desc">${c.desc}</div>
+    <div class="ch-hint" id="hint-text" style="display:none">HINT: ${c.hint}</div>
+  `;
+
+  document.getElementById('code-editor').value = c.starter;
+  clearOutput();
+  setOutputStatus('', '');
+  addOutput('<span class="out-info">Challenge loaded: ' + c.name + '. Write your solution and press RUN.</span>');
+}
+
+function resetCode() {
+  if (currentChallenge) {
+    document.getElementById('code-editor').value = currentChallenge.starter;
+    clearOutput();
+    addOutput('<span class="out-info">Code reset to starter template.</span>');
+  }
+}
+
+function showHint() {
+  const el = document.getElementById('hint-text');
+  if (el) { el.style.display = el.style.display === 'none' ? 'block' : 'none'; }
+}
+
+async function runCode() {
+  if (!pyodideReady) { addOutput('<span class="out-fail">Python runtime still loading. Wait a moment...</span>'); return; }
+  if (!currentChallenge) return;
+
+  clearOutput();
+  setOutputStatus('RUNNING...', 'run');
+
+  const code = document.getElementById('code-editor').value;
+  const c = currentChallenge;
+
+  try {
+    // Capture prints
+    await pyodide.runPythonAsync(`
+import sys
+from io import StringIO
+_stdout_capture = StringIO()
+sys.stdout = _stdout_capture
+`);
+
+    await pyodide.runPythonAsync(code);
+
+    const printed = await pyodide.runPythonAsync(`
+sys.stdout = sys.__stdout__
+_stdout_capture.getvalue()
+`);
+
+    if (printed.trim()) {
+      printed.trim().split('\n').forEach(line => {
+        addOutput('<span class="out-print">&gt; ' + escHtml(line) + '</span>');
+      });
+    }
+
+    // Run tests
+    let passed = 0;
+    let failed = 0;
+    for (const test of c.tests) {
+      try {
+        await pyodide.runPythonAsync(`sys.stdout = _stdout_capture`);
+        const result = await pyodide.runPythonAsync(`
+sys.stdout = sys.__stdout__
+str(${test.input})
+`);
+        const got = result.trim();
+        const exp = test.expected.replace(/^"|"$/g, '');
+        const ok = got === exp || got === test.expected;
+        if (ok) {
+          passed++;
+          addOutput(`<span class="out-pass">✓ ${escHtml(test.input)}</span>`);
+        } else {
+          failed++;
+          addOutput(`<span class="out-fail">✗ ${escHtml(test.input)}</span>`);
+          addOutput(`<span class="out-fail">&nbsp;&nbsp;Expected: ${escHtml(test.expected)}</span>`);
+          addOutput(`<span class="out-fail">&nbsp;&nbsp;Got:      ${escHtml(got)}</span>`);
+        }
+      } catch(e) {
+        failed++;
+        addOutput(`<span class="out-fail">✗ ${escHtml(test.input)}: ${escHtml(e.message)}</span>`);
+      }
+    }
+
+    if (failed === 0) {
+      setOutputStatus(`ALL TESTS PASSED (${passed}/${passed})`, 'pass');
+      if (!solvedSet.has(c.id)) {
+        solvedSet.add(c.id);
+        const xpGain = c.xp;
+        totalXP += xpGain;
+        addOutput(`<span class="out-xp">+${xpGain} XP EARNED — CHALLENGE COMPLETE</span>`);
+        updateStats();
+        buildSidebar();
+        loadChallenge(c);
+      } else {
+        addOutput('<span class="out-info">Already solved — no XP awarded again.</span>');
+      }
+    } else {
+      setOutputStatus(`${passed}/${c.tests.length} TESTS PASSED`, 'fail');
+    }
+
+  } catch(e) {
+    try { await pyodide.runPythonAsync(`sys.stdout = sys.__stdout__`); } catch(_) {}
+    setOutputStatus('ERROR', 'fail');
+    addOutput('<span class="out-fail">ERROR: ' + escHtml(e.message) + '</span>');
+  }
+}
+
+function updateStats() {
+  document.getElementById('hstat-xp').textContent = totalXP;
+  document.getElementById('hstat-solved').textContent = solvedSet.size;
+  let level = 1;
+  for (let i = 1; i < LEVEL_XP.length; i++) { if (totalXP >= LEVEL_XP[i]) level = i + 1; }
+  level = Math.min(level, LEVEL_XP.length);
+  document.getElementById('hstat-level').textContent = level;
+  const levelFloor = LEVEL_XP[level - 1] || 0;
+  const levelCeil = LEVEL_XP[level] || levelFloor + 500;
+  const pct = Math.min(100, Math.round((totalXP - levelFloor) / (levelCeil - levelFloor) * 100));
+  document.getElementById('xp-bar').style.width = pct + '%';
+}
+
+function clearOutput() { document.getElementById('output-body').innerHTML = ''; }
+function addOutput(html) {
+  const div = document.createElement('div');
+  div.className = 'out-line';
+  div.innerHTML = html;
+  document.getElementById('output-body').appendChild(div);
+  document.getElementById('output-body').scrollTop = 9999;
+}
+function setOutputStatus(text, type) {
+  const el = document.getElementById('output-status');
+  el.textContent = text;
+  el.className = 'output-status' + (type ? ' status-' + type : '');
+}
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Tab key support in editor
+document.addEventListener('DOMContentLoaded', () => {
+  const ed = document.getElementById('code-editor');
+  if (ed) {
+    ed.addEventListener('keydown', e => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const s = ed.selectionStart;
+        ed.value = ed.value.substring(0, s) + '    ' + ed.value.substring(ed.selectionEnd);
+        ed.selectionStart = ed.selectionEnd = s + 4;
+      }
+    });
+  }
+});
+</script>
+</body>
+</html>
